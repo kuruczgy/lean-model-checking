@@ -1,0 +1,12 @@
+name = "lean-model-checking"
+version = "0.1.0"
+defaultTargets = ["ModelChecking"]
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+version = "git#v4.24.0"
+
+[[lean_lib]]
+name = "ModelChecking"
+

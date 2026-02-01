@@ -1,4 +1,4 @@
-Formalizations of some theorems related to model checking.
+# Formalizations of some theorems related to model checking.
 
 ## AI usage
 
@@ -9,3 +9,9 @@ This repository contains a significant amount of AI written code. Generally I tr
 [[2]](https://leanprover.zulipchat.com/#narrow/channel/113488-general/topic/PSA.20about.20trusting.20Lean.20proofs)
 [[3]](https://github.com/leanprover/lean4/issues/9160).
 I hope that quick code inspection can catch such attacks, as any such code should look very out of place in a proof. I haven't seen any AI attempt any such attack so far, and I hope that AIs will stay aligned enough that they would rather tell the user that they cannot prove a theorem or that it's false, instead of resorting to such techniques.
+
+## Linear Temporal Logic (LTL) to Büchi automaton translation
+
+We prove that for any LTL formula, there exists an equivalent Büchi automaton that accepts the same words.
+
+See [`LTL_NBW_Statement.lean`](./ModelChecking/LTL_NBW_Statement.lean) for the self contained theorem statement (`for_any_LTL_formula_exists_an_equivalent_NBW_statement`), and [`LTL_NBW_Result.lean`](./ModelChecking/LTL_NBW_Result.lean) for the top-level theorem.

@@ -29,15 +29,7 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          lean4 = pkgs.lean4.overrideAttrs rec {
-            version = "4.27.0";
-            src = pkgs.fetchFromGitHub {
-              owner = "leanprover";
-              repo = "lean4";
-              tag = "v${version}";
-              hash = "sha256-nxAznaWQEilzn93SZTKLKL7TZEPD5LRcJLFmgoCWsXA=";
-            };
-          };
+          lean4 = pkgs.lean4;
         in
         {
           default = pkgs.stdenv.mkDerivation {

@@ -150,7 +150,7 @@ theorem ABW.toNBW.lang_sup {S Q} {A : ABW S Q} [Finite Q] {w : Nat → S} : A.la
   have p_path : A.toNBW.run p w := by
     simp [ABW.toNBW, NBW.run]
     constructor
-    · simp [p, helper.p]
+    · apply Set.mem_singleton
     · intros n
       induction n
       next =>
@@ -241,7 +241,8 @@ theorem ABW.toNBW.lang_sup {S Q} {A : ABW S Q} [Finite Q] {w : Nat → S} : A.la
   have W_not_F : ∀ i, (p i).2 ∩ A.F = ∅ := by
     intros i; cases i <;> simp [p, helper.p]; grind
   by_contra H
-  simp [ABW.toNBW] at H
+  unfold ABW.toNBW at H
+  simp at H
   rcases H with ⟨n, W_nonempty⟩
 
   let S' : LevelGraph := {
@@ -249,11 +250,10 @@ theorem ABW.toNBW.lang_sup {S Q} {A : ABW S Q} [Finite Q] {w : Nat → S} : A.la
     E i v v' := ((v.val, n + i), v'.val) ∈ G.E
     ex_parent i v := by
       specialize W_nonempty (n + i) (by omega)
-      have vp : v.val ∈ (p (n + (i + 1))).2 := v.prop
+      rcases v with ⟨v, vp⟩
       simp [p, helper.p, W_nonempty] at vp
       obtain ⟨_, y, yW, yE⟩ := vp
       exists ⟨y, by assumption⟩
-      simp
       apply yE.right.right
     fin i := Subtype.finite
     nonempty i := by

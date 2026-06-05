@@ -614,7 +614,7 @@ def shift_conjoin_dag.run_dag
         simp only [
           conjoin_dag.dag, conjoin_dag.base,
           Set.mem_image, Subtype.exists,
-          Prod.mk.injEq, Prod.exists, Set.mem_union, Prod.forall
+          Prod.mk.injEq, Prod.exists, Set.mem_union, Prod.forall, Set.mem_prod
         ]
         grind
     · simp at hv
@@ -674,7 +674,7 @@ variable (G : DAG (Iic Φ)) (rΦ : Iic Φ) (rφ : Iic φ) (shift : ℕ)
 def dag : DAG (Iic φ) := {
   V := { (q, l) | (q.embed_le leφ, shift + l) ∈ G.V } ∪ {(rφ, 0)}
   E := { ((q, l), q') : _ | ((q.embed_le leφ, shift + l), q'.embed_le leφ) ∈ G.E ∨ (l = 0 ∧ q = rφ ∧ ((rΦ, shift), q'.embed_le leφ) ∈ G.E) }
-  edge_closure := by cases G; grind
+  edge_closure := by cases G; simp; grind
 }
 
 theorem preserves_path {p : ℕ → Iic φ} (p_path : (dag leφ G rΦ rφ shift).path p) : G.path (fun i => (p (i + 1)).embed_le leφ) := by
@@ -807,7 +807,9 @@ lemma preserves_path
   have pres_branch : ∀ {i}, (op i).val ≤ φ → ∀ j ≥ i, (op j).val ≤ φ := by
     simp only [dag, base, E, Set.mem_union] at op_path
     intros _ _ j
-    induction j <;> grind
+    induction j
+    · grind
+    next n _ => have := op_path n; grind
   let ι := fun i => mini G (⟨(op (bp + i)).val, (pres_branch bp_branch _ (by omega))⟩, n + (bp + i))
   have ι_antitone : Antitone ι := by
     apply antitone_nat_of_succ_le
@@ -853,7 +855,14 @@ def run_dag
       · apply h_delta_root
         simpa using p_sat
       · simp only [dag, base, E]
-        grind
+        grind only [
+          = Set.subset_def,
+          = Set.mem_union,
+          = Set.mem_prod,
+          = Set.mem_singleton_iff,
+          = Set.mem_image,
+          usr Set.mem_setOf_eq
+        ]
     · let i' := mini (fun i => (G i).toDAG) (⟨q, pq⟩, l)
       obtain ⟨Y, p_sat, _⟩ := (G i').p_sat (⟨q, pq⟩, l - i') (by apply mini_in (G := (fun i => (G i).toDAG)); exact hv)
       exists Subtype.embed_le ltφ.le '' Y
@@ -863,7 +872,14 @@ def run_dag
         have eq : l - i' + i' = l := by have := mini_le (fun i => (G i).toDAG); grind
         rwa [eq] at p_sat
       · simp only [dag, base, E]
-        grind
+        grind only [
+          = Set.subset_def,
+          = Set.mem_union,
+          = Set.mem_prod,
+          = Set.mem_singleton_iff,
+          = Set.mem_image,
+          usr Set.mem_setOf_eq
+        ]
 }
 
 end always_dag
@@ -1001,7 +1017,10 @@ lemma subformula_toABW_lang
       · let : DecidablePred (· ∈ w k) := by classical infer_instance
         simp [Subtype.embed_le]
         exact PositiveBool.map_subtype_restrict (delta_forall.imp (by grind)) delta_forall (by grind) p_sat
-      · grind
+      · simp
+        intros _ _ _
+        apply p_sub
+        grind
     )
     (by simp [NNF.toABW])
   intros p p_path
@@ -1120,6 +1139,8 @@ lemma next_mp {AP : Type} {φ : NNF AP} {w} : φ.next.toABW.language w → φ.to
     simp [NNF.toABW, delta, PositiveBool.Sat, PositiveBool.map_subtype] at this
     rcases this with ⟨Y, p_sat, p_sub⟩
     have := G.edge_closure ((⟨φ.next, le_refl _⟩, 0), ⟨φ, sub.next sub.refl⟩)
+    refine (this ?_).right
+    apply p_sub
     grind
   obtain ⟨Y, p_sat, p_sub⟩ := G.p_sat _ in_1
   apply subformula_toABW_lang (sub.next sub.refl) G_acc p_sat p_sub

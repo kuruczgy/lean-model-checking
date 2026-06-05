@@ -18,7 +18,7 @@ def ABW.toNBW {S Q} (A : ABW S Q) : NBW S := {
 }
 
 theorem ABW.toNBW.lang_sub {S Q} {A : ABW S Q} {w : Nat → S} : (ABW.toNBW A).language w → A.language w := by
-  simp [ABW.language, NBW.language, ABW.toNBW, NBW.run]
+  simp [ABW.language, NBW.language, NBW.run]
   intros p h1 h2 h3
   let X i := (p i).fst
   let W i := (p i).snd
@@ -26,7 +26,7 @@ theorem ABW.toNBW.lang_sub {S Q} {A : ABW S Q} {w : Nat → S} : (ABW.toNBW A).l
     V := { (q, i) : _ | q ∈ X i }
     E := { ((q, i), q') : _ | (q ∈ X i \ W i ∧ q' ∈ X (i + 1)) ∨ (q ∈ X i ∩ W i ∧ q' ∈ X (i + 1) ∩ (A.F ∪ W (i + 1))) }
     edge_closure := by grind
-    p_root := by grind
+    p_root := by grind [ABW.toNBW]
     p_sat := by
       simp
       intros q i h10
@@ -40,7 +40,7 @@ theorem ABW.toNBW.lang_sub {S Q} {A : ABW S Q} {w : Nat → S} : (ABW.toNBW A).l
   intros pp b hp1
   have h4 : ∀ i, W (b + i) = ∅ → ∀ n, pp (i + n + 1) ∈ W (b + i + n + 1) ∨ ∃ j, i ≤ j ∧ j ≤ b + i + n + 1 ∧ pp j ∈ A.F := by
     intros i hw n
-    induction n <;> grind
+    induction n <;> grind [ABW.toNBW]
   intros i
   rcases h3 (b + i) with ⟨start, start_gt, hstart⟩
   rcases h3 (start + 1) with ⟨endi, end_gt, hend⟩
@@ -210,8 +210,7 @@ theorem ABW.toNBW.lang_sup {S Q} {A : ABW S Q} [Finite Q] {w : Nat → S} : A.la
                 simp [helper.p, hW, level]
                 grind
           · by_cases hinf : (W'' ⊆ A.F)
-            · simp [p, helper.p]
-              grind
+            · grind [helper.p]
             · right
               have hW2 : (p (n + 1)).2 ≠ ∅ := by
                 rw [h2]

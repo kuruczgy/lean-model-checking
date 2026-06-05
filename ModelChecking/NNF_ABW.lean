@@ -714,7 +714,7 @@ end filter_dag
 namespace always_dag
 
 variable
-  {T : Type} [PartialOrder T] [DecidableEq T]
+  {T : Type} [PartialOrder T]
   {φ Φ : T}
   (ltφ : φ < Φ)
 
@@ -728,7 +728,6 @@ def V : Set (Iic Φ × ℕ) := { (q, _) | q = ⟨Φ, le_refl _⟩ } ∪ (fun (q,
 
 noncomputable def mini (v : Iic φ × ℕ) : ℕ := sInf { i | i ≤ v.2 ∧ (v.1, v.2 - i) ∈ (G i).V }
 
-omit [DecidableEq T] in
 lemma mini_le q l (H : (q, l) ∈ Vb G) : mini G (q, l) ≤ l := by
   simp [mini]
   simp [Vb] at H
@@ -737,7 +736,6 @@ lemma mini_le q l (H : (q, l) ∈ Vb G) : mini G (q, l) ≤ l := by
   apply csInf_le ⟨0, by intro i _; exact Nat.zero_le i⟩
   simp; exact hV
 
-omit [DecidableEq T] in
 lemma mini_in q l (H : (q, l) ∈ Vb G) : let i' := mini G (q, l); (q, l - i') ∈ (G i').V := by
   have hne : Set.Nonempty { i | i ≤ l ∧ (q, l - i) ∈ (G i).V } := by
     simp [Vb] at H
@@ -747,10 +745,9 @@ lemma mini_in q l (H : (q, l) ∈ Vb G) : let i' := mini G (q, l); (q, l - i') �
   exact (csInf_mem hne).2
 
 def E : Set ((Iic Φ × ℕ) × Iic Φ) := { ((q, l), q') : _ |
-  if q = ⟨Φ, le_refl _⟩ then
-    q' = ⟨Φ, le_refl _⟩ ∨ ∃ (hq' : q' ≤ φ), ((⟨φ, le_refl _⟩, 0), ⟨q'.val, hq'⟩) ∈ (G l).E
-  else
-    ∃ (hq : q ≤ φ) (hq' : q' ≤ φ) (_ : (⟨q.val, hq⟩, l) ∈ Vb G), let i' := mini G (⟨q.val, hq⟩, l); ((⟨q.val, hq⟩, l - i'), ⟨q'.val, hq'⟩) ∈ (G i').E
+  q = ⟨Φ, le_refl _⟩ ∧ (q' = ⟨Φ, le_refl _⟩ ∨ ∃ (hq' : q' ≤ φ), ((⟨φ, le_refl _⟩, 0), ⟨q'.val, hq'⟩) ∈ (G l).E)
+} ∪ { ((q, l), q') : _ |
+  q ≠ ⟨Φ, le_refl _⟩ ∧ ∃ (hq : q ≤ φ) (hq' : q' ≤ φ) (_ : (⟨q.val, hq⟩, l) ∈ Vb G), let i' := mini G (⟨q.val, hq⟩, l); ((⟨q.val, hq⟩, l - i'), ⟨q'.val, hq'⟩) ∈ (G i').E
 }
 
 lemma mini_not_increasing q l q' (He : ((q.embed_le ltφ.le, l), q'.embed_le ltφ.le) ∈ E G) : mini G (q', l + 1) ≤ mini G (q, l) := by
@@ -770,11 +767,9 @@ def dag : DAG (Iic Φ) := {
   base ltφ G with
   edge_closure := by
     rintro ⟨⟨q, l⟩, q'⟩ he
-    simp only [base, V, E, Set.mem_setOf] at he
-    split at he
-    next h_root =>
-      subst h_root
-      rcases he with rfl|⟨q'p, he⟩
+    simp only [base, V, E, Set.mem_setOf, Set.mem_union] at he
+    rcases he with ⟨rfl, he⟩|⟨h_not_root, qp, q'p, qvb, he⟩
+    · rcases he with rfl|⟨q'p, he⟩
       · simp [base, V]
       · constructor
         · simp [base, V]
@@ -786,9 +781,7 @@ def dag : DAG (Iic Φ) := {
           exists l, q'.val, q'p, 1
           have := (G l).edge_closure _ he
           grind
-    next h_not_root =>
-      rcases he with ⟨qp, q'p, qvb, he⟩
-      constructor
+    · constructor
       · simp [base, V, h_not_root]
         exists q, qp
       · simp [base, V]; right
@@ -806,19 +799,13 @@ lemma preserves_path
   (op : ℕ → Iic Φ) (op_path : (dag ltφ G).path op)
     : op = (fun _ => ⟨Φ, le_refl _⟩) ∨ (∃ i k, (Subtype.val <$> (G i)).path (fun i => (op (k + i)).val)) := by
   by_cases H_spine : op = (fun _ => ⟨Φ, le_refl _⟩); { left; exact H_spine }; right
-  obtain ⟨bp, H_bp⟩ : ∃ i, op i ≠ ⟨Φ, le_refl _⟩ := by
-    by_contra
-    simp at this
-    have := funext this
-    contradiction
+  obtain ⟨bp, H_bp⟩ : ∃ i, op i ≠ ⟨Φ, le_refl _⟩ := by grind
   obtain ⟨n, op_path⟩ := op_path
   have bp_branch : (op bp).val ≤ φ := by
     simp only [dag, base, E] at op_path
-    specialize op_path bp
-    simp [H_bp] at op_path
-    exact op_path.fst
+    grind
   have pres_branch : ∀ {i}, (op i).val ≤ φ → ∀ j ≥ i, (op j).val ≤ φ := by
-    simp only [dag, base, E] at op_path
+    simp only [dag, base, E, Set.mem_union] at op_path
     intros _ _ j
     induction j <;> grind
   let ι := fun i => mini G (⟨(op (bp + i)).val, (pres_branch bp_branch _ (by omega))⟩, n + (bp + i))
@@ -860,42 +847,22 @@ def run_dag
     rintro ⟨q, l⟩ hv
     simp [dag, base, V] at hv
     rcases hv with rfl|⟨q, pq, ⟨hv, rfl⟩⟩
-    · simp only
-      obtain ⟨Y, p_sat, p_sub⟩ := (G l).p_sat _ (G l).p_root
+    · obtain ⟨Y, p_sat, p_sub⟩ := (G l).p_sat _ (G l).p_root
       exists ((Subtype.embed_le ltφ.le) '' Y) ∪ {M.q₀}
       constructor
       · apply h_delta_root
-        simp at p_sat
-        exact p_sat
-      · rw [Set.subset_def]
-        rintro ⟨⟨q, l⟩, q'⟩ he
-        simp at he
-        rcases he with ⟨⟨rfl, rfl⟩, rfl|⟨q', pq', hY, rfl⟩⟩
-        · rw [h_M_root]
-          simp [dag, base, E]
-        · simp [dag, base, E]
-          right
-          grind
-    · simp
-      let i' := mini (fun i => (G i).toDAG) (⟨q, pq⟩, l)
-      obtain ⟨Y, p_sat, p_sub⟩ := (G i').p_sat (⟨q, pq⟩, l - i') (by apply mini_in (G := (fun i => (G i).toDAG)); exact hv)
+        simpa using p_sat
+      · simp only [dag, base, E]
+        grind
+    · let i' := mini (fun i => (G i).toDAG) (⟨q, pq⟩, l)
+      obtain ⟨Y, p_sat, _⟩ := (G i').p_sat (⟨q, pq⟩, l - i') (by apply mini_in (G := (fun i => (G i).toDAG)); exact hv)
       exists Subtype.embed_le ltφ.le '' Y
       constructor
-      · clear p_sub
-        rw [h_delta_eq]
+      · rw [h_delta_eq]
         rw [PositiveBool.map_subtype_imp_embed]
         have eq : l - i' + i' = l := by have := mini_le (fun i => (G i).toDAG); grind
-        rw [eq] at p_sat
-        exact p_sat
-      · clear p_sat
-        rw [Set.subset_def]
-        rintro ⟨⟨q, l⟩, q'⟩ he
-        simp at he
-        rcases he with ⟨⟨rfl, rfl⟩, ⟨q', pq', hY, rfl⟩⟩
-        have q_neq : q ≠ Φ := by grind only
-        have q'_neq : q' ≠ Φ := by grind only
-        simp [dag, base, E, q_neq]
-        exists pq, hv
+        rwa [eq] at p_sat
+      · simp only [dag, base, E]
         grind
 }
 
@@ -1018,52 +985,42 @@ noncomputable def NNF.toABW {AP} (ψ : NNF AP) : ABW (Letter AP) { x // x ≤ ψ
   }
 }
 
+lemma subformula_toABW_lang
+  {S} {Φ φ : NNF S} (leφ : φ ≤ Φ)
+  {w : ℕ → Letter S}
+  {G : RunDAG Φ.toABW w} (G_acc : G.accepting)
+  {k : ℕ} {q : Iic Φ} {Y : Set (Iic Φ)}
+  (p_sat : PositiveBool.Sat Y (Φ.toABW.δ ⟨φ, leφ⟩ (w k)))
+  (p_sub : {(q, k)} ×ˢ Y ⊆ G.E)
+    : φ.toABW.language (fun j => w (j + k)) := by
+  exists filter_dag.run_dag (M' := φ.toABW) leφ G q k
+    (by
+      simp [NNF.toABW]
+      exists { q | q.embed_le leφ ∈ Y }
+      constructor
+      · let : DecidablePred (· ∈ w k) := by classical infer_instance
+        simp [Subtype.embed_le]
+        exact PositiveBool.map_subtype_restrict (delta_forall.imp (by grind)) delta_forall (by grind) p_sat
+      · grind
+    )
+    (by simp [NNF.toABW])
+  intros p p_path
+  have p_pres := filter_dag.preserves_path leφ G.toDAG q φ.toABW.q₀ _ p_path
+  intros i
+  obtain ⟨j, Hij, G_acc⟩ := G_acc _ p_pres (i + 1)
+  exists j + 1, (by omega)
+
 lemma and_mp.left {S} {φ₁ φ₂ : NNF S} {w} : (φ₁.and φ₂).toABW.language w → φ₁.toABW.language w := by
   simp [ABW.language]
   intros G G_acc
-  exists filter_dag.run_dag (sub.and_left sub.refl) G (φ₁.and φ₂).toABW.q₀ 0
-    (by
-      have := G.p_sat _ G.p_root
-      simp at this
-      obtain ⟨Y, h1, h2⟩ := this
-      exists { q | ⟨q.val, sub.and_left q.prop⟩ ∈ Y }
-      simp [NNF.toABW]
-      constructor
-      · apply PositiveBool.map_sat_le (sub.and_left sub.refl)
-        simp at h1 ⊢
-        exact h1.left
-      · intros
-        simp [Set.mem_prod, Set.subset_def] at h2
-        apply h2 <;> trivial
-    )
-    (by simp [NNF.toABW])
-  intros p p_path i
-  obtain ⟨j, Hij, G_acc⟩ := G_acc _ (filter_dag.preserves_path _ _ _ _ _ p_path) (i + 1)
-  exists j + 1, (by omega)
+  obtain ⟨Y, p_sat, p_sub⟩ := G.p_sat _ G.p_root
+  apply subformula_toABW_lang (sub.and_left sub.refl) G_acc p_sat.left p_sub
 
-lemma and_mp.right {S} {φ₁ φ₂ : NNF S} : ∀ {w}, (NNF.and φ₁ φ₂).toABW.language w → φ₂.toABW.language w := by
-  intros w
+lemma and_mp.right {S} {φ₁ φ₂ : NNF S} {w} : (φ₁.and φ₂).toABW.language w → φ₂.toABW.language w := by
   simp [ABW.language]
   intros G G_acc
-  exists filter_dag.run_dag (sub.and_right sub.refl) G (φ₁.and φ₂).toABW.q₀ 0
-    (by
-      have := G.p_sat _ G.p_root
-      simp at this
-      obtain ⟨Y, h1, h2⟩ := this
-      exists { q | ⟨q.val, sub.and_right q.prop⟩ ∈ Y }
-      simp [NNF.toABW]
-      constructor
-      · apply PositiveBool.map_sat_le (sub.and_right sub.refl)
-        simp at h1 ⊢
-        exact h1.right
-      · intros
-        simp [Set.mem_prod, Set.subset_def] at h2
-        apply h2 <;> trivial
-    )
-    (by simp [NNF.toABW])
-  intros p p_path i
-  obtain ⟨j, Hij, G_acc⟩ := G_acc _ (filter_dag.preserves_path _ _ _ _ _ p_path) (i + 1)
-  exists j + 1, (by omega)
+  obtain ⟨Y, p_sat, p_sub⟩ := G.p_sat _ G.p_root
+  apply subformula_toABW_lang (sub.and_right sub.refl) G_acc p_sat.right p_sub
 
 theorem and_mpr {AP : Type} {φ₁ φ₂ : NNF AP} {w : ℕ → Letter AP} (H1 : φ₁.toABW.language w) (H2 : φ₂.toABW.language w)
     : (φ₁.and φ₂).toABW.language w := by
@@ -1101,45 +1058,14 @@ theorem and_mpr {AP : Type} {φ₁ φ₂ : NNF AP} {w : ℕ → Letter AP} (H1 :
     rw [Function.invFun_eq (f := Subtype.val) ⟨⟨(op (j + 1)).val, DAG.path_elems_prop p_path j⟩, rfl⟩] at H
     exact H
 
-
 lemma or_mp {S} {φ₁ φ₂ : NNF S} {w} : (φ₁.or φ₂).toABW.language w → φ₁.toABW.language w ∨ φ₂.toABW.language w := by
   simp [NNF.toABW, ABW.language]
   intros G G_acc
-  obtain ⟨Y, H⟩ := G.p_sat _ G.p_root
-  simp [delta] at H
-  rcases H with ⟨(H|H), h2⟩
-  · left
-    exists filter_dag.run_dag (sub.or_left sub.refl) G (φ₁.or φ₂).toABW.q₀ 0
-      (by
-        exists { q | ⟨q.val, sub.or_left q.prop⟩ ∈ Y }
-        simp
-        constructor
-        · apply PositiveBool.map_sat_le (sub.or_left sub.refl)
-          simpa
-        · intros
-          simp [Set.mem_prod, Set.subset_def] at h2
-          apply h2 <;> trivial
-      )
-      (by simp)
-    intros p p_path i
-    obtain ⟨j, Hij, G_acc⟩ := G_acc _ (filter_dag.preserves_path _ _ _ _ _ p_path) (i + 1)
-    exists j + 1, (by omega)
-  · right
-    exists filter_dag.run_dag (sub.or_right sub.refl) G (φ₁.or φ₂).toABW.q₀ 0
-      (by
-        exists { q | ⟨q.val, sub.or_right q.prop⟩ ∈ Y }
-        simp
-        constructor
-        · apply PositiveBool.map_sat_le (sub.or_right sub.refl)
-          simpa
-        · intros
-          simp [Set.mem_prod, Set.subset_def] at h2
-          apply h2 <;> trivial
-      )
-      (by simp)
-    intros p p_path i
-    obtain ⟨j, Hij, G_acc⟩ := G_acc _ (filter_dag.preserves_path _ _ _ _ _ p_path) (i + 1)
-    exists j + 1, (by omega)
+  obtain ⟨Y, p_sat, p_sub⟩ := G.p_sat _ G.p_root
+  simp [PositiveBool.Sat, delta, PositiveBool.map_subtype] at p_sat
+  rcases p_sat with p_sat|p_sat
+  · left; apply subformula_toABW_lang (sub.or_left sub.refl) G_acc p_sat p_sub
+  · right; apply subformula_toABW_lang (sub.or_right sub.refl) G_acc p_sat p_sub
 
 namespace or_mpr
 
@@ -1195,25 +1121,8 @@ lemma next_mp {AP : Type} {φ : NNF AP} {w} : φ.next.toABW.language w → φ.to
     rcases this with ⟨Y, p_sat, p_sub⟩
     have := G.edge_closure ((⟨φ.next, le_refl _⟩, 0), ⟨φ, sub.next sub.refl⟩)
     grind
-  exists filter_dag.run_dag (M := φ.next.toABW) (M' := φ.toABW) (sub.next sub.refl) G ⟨φ, sub.next sub.refl⟩ 1
-    (by
-      simp [NNF.toABW]
-      have := G.p_sat _ in_1
-      simp [NNF.toABW] at this
-      obtain ⟨Y, p_sat, p_sub⟩ := this
-      exists { q | q.embed_le (sub.next sub.refl) ∈ Y }
-      constructor
-      · let : DecidablePred (· ∈ w 1) := by classical infer_instance
-        simp [Subtype.embed_le]
-        exact PositiveBool.map_subtype_restrict (by grind) delta_forall sub.next p_sat
-      · grind
-    )
-    (by simp [NNF.toABW])
-  intros p p_path
-  have p_pres := filter_dag.preserves_path (sub.next sub.refl) G.toDAG ⟨φ, sub.next sub.refl⟩ _ _ p_path
-  intros i
-  obtain ⟨j, Hij, G_acc⟩ := G_acc _ p_pres (i + 1)
-  exists j + 1, (by omega)
+  obtain ⟨Y, p_sat, p_sub⟩ := G.p_sat _ in_1
+  apply subformula_toABW_lang (sub.next sub.refl) G_acc p_sat p_sub
 
 lemma next_mpr {AP : Type} {φ : NNF AP} {w} : (φ.toABW.language fun j => w (j + 1)) → φ.next.toABW.language w := by
   intros H
@@ -1234,111 +1143,43 @@ lemma until_mp {S} {φ₁ φ₂ : NNF S} {w} (H : (φ₁.until φ₂).toABW.lang
   obtain ⟨G, G_acc⟩ := H
   by_contra never_φ₂
   simp at never_φ₂
-  have root_forever : ∀ i, ((⟨φ₁.until φ₂, sub.refl⟩, i), ⟨φ₁.until φ₂, sub.refl⟩) ∈ G.E ∧ ∀ k ≤ i, φ₁.toABW.language (fun j => w (k + j)) := by
-    intros i; induction i
-    · have := G.p_sat _ G.p_root
-      simp [NNF.toABW] at this
-      obtain ⟨Y, p_sat, p_sub⟩ := this
-      simp [delta, PositiveBool.map_subtype, PositiveBool.Sat] at p_sat
-      rcases p_sat with p_sat|⟨p_sat, inY⟩
-      · suffices φ₂.toABW.language (fun j => w j) by exfalso; specialize never_φ₂ 0; grind
-        exists filter_dag.run_dag (sub.until_right sub.refl) G (φ₁.until φ₂).toABW.q₀ 0
-          (by
-            simp [NNF.toABW]
-            exists { q | q.embed_le (sub.until_right sub.refl) ∈ Y }
-            constructor
-            · let : DecidablePred (· ∈ w 0) := by classical infer_instance
-              simp [Subtype.embed_le]
-              exact PositiveBool.map_subtype_restrict (by grind) delta_forall sub.until_right p_sat
-            · grind
-          )
-          (by simp [NNF.toABW])
-        intros p p_path
-        have p_pres := filter_dag.preserves_path (sub.until_right sub.refl) G.toDAG (φ₁.until φ₂).toABW.q₀ φ₂.toABW.q₀ _ p_path
-        intros i
-        obtain ⟨j, Hij, G_acc⟩ := G_acc _ p_pres (i + 1)
-        exists j + 1, (by omega)
-      · rw [Set.subset_def] at p_sub
-        constructor
-        · exact p_sub ((⟨φ₁.until φ₂, sub.refl⟩, 0), ⟨φ₁.until φ₂, sub.refl⟩) (by grind)
-        · intros k hk; simp at hk; subst hk
-          simp
-          exists filter_dag.run_dag (sub.until_left sub.refl) G (φ₁.until φ₂).toABW.q₀ 0
-            (by
-              simp [NNF.toABW]
-              exists { q | q.embed_le (sub.until_left sub.refl) ∈ Y }
-              constructor
-              · let : DecidablePred (· ∈ w 0) := by classical infer_instance
-                simp [Subtype.embed_le]
-                exact PositiveBool.map_subtype_restrict (by grind) delta_forall sub.until_left p_sat
-              · grind
-            )
-            (by simp [NNF.toABW])
-          intros p p_path
-          have p_pres := filter_dag.preserves_path (sub.until_left sub.refl) G.toDAG (φ₁.until φ₂).toABW.q₀ φ₁.toABW.q₀ _ p_path
-          intros i
-          obtain ⟨j, Hij, G_acc⟩ := G_acc _ p_pres (i + 1)
-          exists j + 1, (by omega)
-    next i ih =>
-      rcases ih with ⟨root_edge, sat_φ₁⟩
-      obtain ⟨Y, p_sat, p_sub⟩ := G.p_sat _ (G.edge_closure _ root_edge).right
-      simp [NNF.toABW, delta, PositiveBool.map_subtype, PositiveBool.Sat] at p_sat
-      rcases p_sat with p_sat|⟨p_sat, inY⟩
-      · suffices φ₂.toABW.language (fun j => w (j + (i + 1))) by
-          exfalso
-          specialize never_φ₂ (i + 1) this
-          rcases never_φ₂ with ⟨k, hk, _⟩
-          specialize sat_φ₁ k (by omega)
-          conv at sat_φ₁ => right; intro j; arg 1; rw [Nat.add_comm]
-          contradiction
-        exists filter_dag.run_dag (M' := φ₂.toABW) (sub.until_right sub.refl) G (φ₁.until φ₂).toABW.q₀ (i + 1)
-          (by
-            simp [NNF.toABW]
-            exists { q | q.embed_le (sub.until_right sub.refl) ∈ Y }
-            constructor
-            · let : DecidablePred (· ∈ w (i + 1)) := by classical infer_instance
-              simp [Subtype.embed_le]
-              exact PositiveBool.map_subtype_restrict (by grind) delta_forall sub.until_right p_sat
-            · grind
-          )
-          (by simp [NNF.toABW])
-        intros p p_path
-        have p_pres := filter_dag.preserves_path (sub.until_right sub.refl) G.toDAG (φ₁.until φ₂).toABW.q₀ φ₂.toABW.q₀ _ p_path
-        intros i
-        obtain ⟨j, Hij, G_acc⟩ := G_acc _ p_pres (i + 1)
-        exists j + 1, (by omega)
-      · rw [Set.subset_def] at p_sub
-        constructor
-        · exact p_sub ((⟨φ₁.until φ₂, sub.refl⟩, i + 1), ⟨φ₁.until φ₂, sub.refl⟩) (by grind)
-        · intros k hk
-          by_cases k_eq : k = i + 1
-          · subst k_eq
-            conv => right; intro j; right; rw [Nat.add_comm]
-            exists filter_dag.run_dag (sub.until_left sub.refl) G (φ₁.until φ₂).toABW.q₀ (i + 1)
-              (by
-                simp [NNF.toABW]
-                exists { q | q.embed_le (sub.until_left sub.refl) ∈ Y }
-                constructor
-                · let : DecidablePred (· ∈ w (i + 1)) := by classical infer_instance
-                  simp [Subtype.embed_le]
-                  exact PositiveBool.map_subtype_restrict (by grind) delta_forall sub.until_left p_sat
-                · grind
-              )
-              (by simp [NNF.toABW])
-            intros p p_path
-            have p_pres := filter_dag.preserves_path _ G.toDAG (φ₁.until φ₂).toABW.q₀ φ₁.toABW.q₀ _ p_path
-            intros i
-            obtain ⟨j, Hij, G_acc⟩ := G_acc _ p_pres (i + 1)
-            exists j + 1, (by omega)
-          · exact sat_φ₁ k (by omega)
-  have p_path : G.path (fun _ => ⟨φ₁.until φ₂, sub.refl⟩) := by
-    simp [DAG.path]
-    exists 0
-    intros i
-    simp
-    exact (root_forever i).left
-  obtain ⟨n, _, G_acc⟩ := G_acc _ p_path 0
-  simp [NNF.toABW] at G_acc
+  suffices root_forever : ∀ i, ((⟨φ₁.until φ₂, sub.refl⟩, i), ⟨φ₁.until φ₂, sub.refl⟩) ∈ G.E ∧ ∀ k ≤ i, φ₁.toABW.language (fun j => w (k + j)) by
+    have p_path : G.path (fun _ => ⟨φ₁.until φ₂, sub.refl⟩) := by exists 0; grind
+    obtain ⟨n, _, G_acc⟩ := G_acc _ p_path 0
+    simp [NNF.toABW] at G_acc
+  intros i; induction i
+  · have := G.p_sat _ G.p_root
+    simp [NNF.toABW] at this
+    obtain ⟨Y, p_sat, p_sub⟩ := this
+    simp [delta, PositiveBool.map_subtype, PositiveBool.Sat] at p_sat
+    rcases p_sat with p_sat|⟨p_sat, inY⟩
+    · suffices φ₂.toABW.language (fun j => w j) by exfalso; specialize never_φ₂ 0; grind
+      apply subformula_toABW_lang (sub.until_right sub.refl) G_acc p_sat p_sub
+    · rw [Set.subset_def] at p_sub
+      constructor
+      · exact p_sub ((⟨φ₁.until φ₂, sub.refl⟩, 0), ⟨φ₁.until φ₂, sub.refl⟩) (by grind)
+      · intros k hk; simp at hk; subst hk
+        simp
+        apply subformula_toABW_lang (sub.until_left sub.refl) G_acc p_sat p_sub
+  next i ih =>
+    rcases ih with ⟨root_edge, sat_φ₁⟩
+    obtain ⟨Y, p_sat, p_sub⟩ := G.p_sat _ (G.edge_closure _ root_edge).right
+    simp [NNF.toABW, delta, PositiveBool.map_subtype, PositiveBool.Sat] at p_sat
+    rcases p_sat with p_sat|⟨p_sat, inY⟩
+    · suffices φ₂.toABW.language (fun j => w (j + (i + 1))) by
+        exfalso
+        specialize never_φ₂ (i + 1) this
+        grind
+      apply subformula_toABW_lang (sub.until_right sub.refl) G_acc p_sat p_sub
+    · rw [Set.subset_def] at p_sub
+      constructor
+      · exact p_sub ((⟨φ₁.until φ₂, sub.refl⟩, i + 1), ⟨φ₁.until φ₂, sub.refl⟩) (by grind)
+      · intros k hk
+        by_cases k_eq : k = i + 1
+        · subst k_eq
+          conv => right; intro j; right; rw [Nat.add_comm]
+          apply subformula_toABW_lang (sub.until_left sub.refl) G_acc p_sat p_sub
+        · exact sat_φ₁ k (by omega)
 
 lemma until_mpr.base
   {S} [DecidableEq S] {φ₁ φ₂ : NNF S} {w : ℕ → Letter S}
@@ -1407,53 +1248,18 @@ namespace release_mp
 variable {S} {φ₁ φ₂ : NNF S} {w : ℕ → Letter S} {G : RunDAG (φ₁.release φ₂).toABW w}
 
 lemma right (G_acc : G.accepting) {l} (H : (⟨φ₁.release φ₂, le_refl _⟩, l) ∈ G.V) : φ₂.toABW.language (fun j => w (j + l)) := by
-  exists filter_dag.run_dag (sub.release_right sub.refl) G (φ₁.release φ₂).toABW.q₀ l
-    (by
-      simp [NNF.toABW]
-      have := G.p_sat _ H
-      simp [NNF.toABW] at this
-      obtain ⟨Y, p_sat, p_sub⟩ := this
-      simp [delta, PositiveBool.map_subtype, PositiveBool.Sat] at p_sat
-      exists { q | q.embed_le (sub.release_right sub.refl) ∈ Y }
-      constructor
-      · let : DecidablePred (· ∈ w l) := by classical infer_instance
-        simp [Subtype.embed_le]
-        exact PositiveBool.map_subtype_restrict (by grind) delta_forall sub.release_right p_sat.left
-      · grind
-    )
-    (by simp [NNF.toABW])
-  intros p p_path
-  have p_pres := filter_dag.preserves_path (sub.release_right sub.refl) G.toDAG (φ₁.release φ₂).toABW.q₀ φ₂.toABW.q₀ _ p_path
-  intros i
-  obtain ⟨j, Hij, G_acc⟩ := G_acc _ p_pres (i + 1)
-  exists j + 1, (by omega)
+  obtain ⟨Y, p_sat, p_sub⟩ := G.p_sat _ H
+  apply subformula_toABW_lang (sub.release_right sub.refl) G_acc p_sat.left p_sub
 
 lemma left (G_acc : G.accepting) {l} (H₁ : (⟨φ₁.release φ₂, le_refl _⟩, l) ∈ G.V) (H₂ : (⟨φ₁.release φ₂, le_refl _⟩, l + 1) ∉ G.V) : φ₁.toABW.language (fun j => w (j + l)) := by
-  exists filter_dag.run_dag (sub.release_left sub.refl) G (φ₁.release φ₂).toABW.q₀ l
-    (by
-      simp [NNF.toABW]
-      have := G.p_sat _ H₁
-      simp [NNF.toABW] at this
-      obtain ⟨Y, p_sat, p_sub⟩ := this
-      simp [delta, PositiveBool.map_subtype, PositiveBool.Sat] at p_sat
-      exists { q | q.embed_le (sub.release_left sub.refl) ∈ Y }
-      constructor
-      · let : DecidablePred (· ∈ w l) := by classical infer_instance
-        simp [Subtype.embed_le]
-        rcases p_sat with ⟨_, p_sat|p_sat⟩
-        · exact PositiveBool.map_subtype_restrict (by grind) delta_forall sub.release_left p_sat
-        · exfalso
-          have := G.edge_closure
-          have : ((⟨φ₁.release φ₂, le_refl _⟩, l), ⟨φ₁.release φ₂, le_refl _⟩) ∈ G.E := by grind
-          grind
-      · grind
-    )
-    (by simp [NNF.toABW])
-  intros p p_path
-  have p_pres := filter_dag.preserves_path (sub.release_left sub.refl) G.toDAG (φ₁.release φ₂).toABW.q₀ φ₁.toABW.q₀ _ p_path
-  intros i
-  obtain ⟨j, Hij, G_acc⟩ := G_acc _ p_pres (i + 1)
-  exists j + 1, (by omega)
+  obtain ⟨Y, p_sat, p_sub⟩ := G.p_sat _ H₁
+  rcases p_sat with ⟨_, p_sat|p_sat⟩
+  · apply subformula_toABW_lang (sub.release_left sub.refl) G_acc p_sat p_sub
+  · exfalso
+    have := G.edge_closure
+    simp [PositiveBool.map_subtype, PositiveBool.Sat] at p_sat
+    have : ((⟨φ₁.release φ₂, le_refl _⟩, l), ⟨φ₁.release φ₂, le_refl _⟩) ∈ G.E := by grind
+    grind
 
 end release_mp
 
@@ -1461,6 +1267,7 @@ namespace release_mpr
 
 variable {S} [DecidableEq S] {φ₁ φ₂ : NNF S} {w : ℕ → Letter S}
 
+omit [DecidableEq S] in
 lemma always
   (hg : ∀ i, φ₂.toABW.language (fun j => w (j + i)))
     : (φ₁.release φ₂).toABW.language w := by
@@ -1581,6 +1388,7 @@ end release_mpr
 theorem NNF.toABW_lang {AP} (ψ : NNF AP) : ψ.toABW.language = ψ.language := by
   have : DecidableEq AP := by classical infer_instance
   induction ψ
+
   -- atom
   next p =>
     simp [NNF.language]
@@ -1656,11 +1464,11 @@ theorem NNF.toABW_lang {AP} (ψ : NNF AP) : ψ.toABW.language = ψ.language := b
   -- until
   next f g f_ih g_ih =>
     funext w; apply propext
+    rw [until_expand_repeat]
     constructor
     · intros H
       obtain ⟨n, h1, h2⟩ := until_mp H
       clear H
-      rw [until_expand_repeat]
       exists n
       revert w
       induction n
@@ -1676,7 +1484,6 @@ theorem NNF.toABW_lang {AP} (ψ : NNF AP) : ψ.toABW.language = ψ.language := b
           · intros k hk
             exact h2 (k + 1) (by omega)
     · intros H
-      rw [until_expand_repeat] at H
       obtain ⟨n, H⟩ := H
       revert w
       induction n
@@ -1698,15 +1505,14 @@ theorem NNF.toABW_lang {AP} (ψ : NNF AP) : ψ.toABW.language = ψ.language := b
     constructor
     · intros H
       simp [NNF.language]
-      rw [←f_ih, ←g_ih]; clear f_ih g_ih
       obtain ⟨G, G_acc⟩ := H
+      rw [←f_ih, ←g_ih]; clear f_ih g_ih
       by_cases ha : ∃ l, (∀ l' ≤ l, (⟨f.release g, le_refl _⟩, l') ∈ G.V) ∧ (⟨f.release g, le_refl _⟩, l + 1) ∉ G.V
       · rcases ha with ⟨l, h1, h2⟩
         intros i
         by_cases i ≤ l
         · left
           specialize h1 i (by omega)
-          clear h2
           exact release_mp.right G_acc h1
         · right
           exists l, (by omega)
@@ -1726,38 +1532,29 @@ theorem NNF.toABW_lang {AP} (ψ : NNF AP) : ψ.toABW.language = ψ.language := b
         left
         specialize ha i
         exact release_mp.right G_acc ha
-    · -- By Claude 4.5 Opus
-      intros H
+    · intros H
       by_cases hAlways : ∀ i, g.language (fun j => w (j + i))
-      · -- g holds forever - use the always lemma
-        have hg : ∀ i, g.toABW.language (fun j => w (j + i)) := by
-          intros i; rw [g_ih]; exact hAlways i
-        exact release_mpr.always hg
-      · -- g doesn't hold forever; by release semantics, f must hold at some point
-        simp at hAlways
+      · apply release_mpr.always
+        rw [g_ih]
+        exact hAlways
+      · simp at hAlways
         obtain ⟨n, hgn⟩ := hAlways
-        -- Build the proof by induction on n (similar to until)
-        revert w H hgn
+        revert w
         induction n
-        · -- Base case: g doesn't hold at position 0, contradiction with release semantics
-          intros w H hgn
-          rw [release_expand] at H
-          simp [NNF.language] at H
-          exact absurd H.1 hgn
+        · intros w H hgn
+          specialize H 0
+          simp at H
+          contradiction
         next n ih =>
           intros w H hgn
           rw [release_expand] at H
-          simp [NNF.language] at H
           rcases H with ⟨lg, lf | H⟩
-          · -- f holds at position 0, use base case
-            rw [←f_ih] at lf
+          · rw [←f_ih] at lf
             rw [←g_ih] at lg
             exact release_mpr.base lf lg
-          · -- f R g holds from position 1
-            rw [←g_ih] at lg
-            have hgn' : ¬g.language (fun j => w (j + n + 1)) := by convert hgn using 2
-            have ih' := ih (fun j => w (j + 1)) H hgn'
-            exact release_mpr.next lg ih'
+          · rw [←g_ih] at lg
+            apply release_mpr.next lg
+            apply ih (fun j => w (j + 1)) H hgn
 
 theorem exists_ABW_lang_for_LTL {AP} (f : LTL AP) : ∃ (Q : Type) (_ : Finite Q) (A : ABW (Letter AP) Q), f.language = A.language := by
   obtain ⟨nnf, eqv⟩ := f.exists_equiv_nnf

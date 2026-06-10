@@ -7,6 +7,11 @@ name = "mathlib"
 scope = "leanprover-community"
 version = "git#v4.30.0"
 
+[[require]]
+name = "cslib"
+scope = "leanprover"
+version = "git#v4.30.0"
+
 [[lean_lib]]
 name = "ModelChecking"
 
